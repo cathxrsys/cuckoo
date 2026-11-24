@@ -158,6 +158,7 @@ struct Panel: View {
         }
         .padding(14)
         .frame(width: 280)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder private var geoRow: some View {
@@ -183,7 +184,11 @@ struct Panel: View {
             case .idle:
                 Text("…").foregroundStyle(.secondary)
             case .failed(let m):
-                Text(m).font(.caption).foregroundStyle(.red)
+                Text(m)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
             case .ok(let ws):
                 ForEach(ws) { w in
                     VStack(alignment: .leading, spacing: 2) {
