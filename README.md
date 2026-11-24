@@ -45,7 +45,7 @@ cd cuckoo
 ./build.sh
 ```
 
-`build.sh` builds a release binary, wraps it into `~/Applications/LimitsBar.app` (ad-hoc signed, no Dock icon) and launches it. Run it again to update.
+`build.sh` builds a release binary, wraps it into `~/Applications/Cuckoo.app` (ad-hoc signed, no Dock icon) and launches it. Run it again to update.
 
 ## Caveats
 
