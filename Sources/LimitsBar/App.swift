@@ -8,6 +8,16 @@ enum Status {
 
 @MainActor
 final class Model: ObservableObject {
+    static let refreshIntervals = [5, 10, 15, 30]
+    private static let refreshIntervalKey = "refreshIntervalMinutes"
+
+    @Published var refreshIntervalMinutes: Int {
+        didSet {
+            UserDefaults.standard.set(refreshIntervalMinutes, forKey: Self.refreshIntervalKey)
+            scheduleAutoRefresh()
+        }
+    }
+
     @Published var country: String?
     @Published var geoKnown = false
     @Published var claude: Status = .idle
@@ -30,9 +40,8 @@ final class Model: ObservableObject {
     var allowed: Bool { geoKnown && country != nil && country != "RU" }
 
     init() {
-        timer = Timer.scheduledTimer(withTimeInterval: 90, repeats: true) { [weak self] _ in
-            Task { await self?.refresh() }
-        }
+        let savedInterval = UserDefaults.standard.integer(forKey: Self.refreshIntervalKey)
+        refreshIntervalMinutes = Self.refreshIntervals.contains(savedInterval) ? savedInterval : 5
         // смена сети / включение-выключение VPN → перепроверить страну
         monitor.pathUpdateHandler = { [weak self] _ in
             Task { @MainActor in self?.scheduleNetRefresh() }
@@ -42,6 +51,13 @@ final class Model: ObservableObject {
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in Task { @MainActor in self?.scheduleNetRefresh() } }
         Task { await refresh() }
+    }
+
+    private func scheduleAutoRefresh() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(refreshIntervalMinutes * 60), repeats: false) { [weak self] _ in
+            Task { await self?.refresh() }
+        }
     }
 
     private func scheduleNetRefresh() {
@@ -55,7 +71,10 @@ final class Model: ObservableObject {
     func refresh() async {
         guard !loading else { return }
         loading = true
-        defer { loading = false }
+        defer {
+            loading = false
+            scheduleAutoRefresh()
+        }
 
         // страна проверяется прямо перед каждым запросом
         country = await Geo.country()
@@ -128,6 +147,11 @@ struct Panel: View {
                 Spacer()
                 Button(model.loading ? "…" : "Обновить") { Task { await model.refresh() } }
                     .disabled(model.loading)
+            }
+            Picker("Автообновление", selection: $model.refreshIntervalMinutes) {
+                ForEach(Model.refreshIntervals, id: \.self) { minutes in
+                    Text("\(minutes) мин").tag(minutes)
+                }
             }
             Toggle("Запускать при входе", isOn: $model.launchAtLogin)
             Button("Выйти") { NSApp.terminate(nil) }

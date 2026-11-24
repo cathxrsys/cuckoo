@@ -21,7 +21,7 @@ It reads the credentials the official CLIs already store on your Mac, and asks t
 
 Tokens are only read, never refreshed or written back, and are sent nowhere except these two endpoints.
 
-Limits are refreshed every 90 seconds, 3 seconds after a network change (VPN on/off, Wi-Fi switch), after waking from sleep, or manually from the panel.
+Automatic updates default to every 5 minutes. Choose 5, 10, 15, or 30 minutes from the panel. Cuckoo also refreshes after a network change (VPN on/off, Wi-Fi switch), after waking from sleep, or when you refresh manually. Each refresh restarts the automatic timer.
 
 ### Region check
 

@@ -5,7 +5,7 @@ cd "${0:A:h}"
 swift build -c release
 APP=~/Applications/Cuckoo.app
 pkill -x LimitsBar 2>/dev/null || true
-rm -rf "$APP"
+rm -rf "$APP/Contents"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp assets/Cuckoo.icns "$APP/Contents/Resources/"
 cp .build/release/LimitsBar "$APP/Contents/MacOS/"
