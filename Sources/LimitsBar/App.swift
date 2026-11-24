@@ -50,7 +50,7 @@ final class Model: ObservableObject {
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in Task { @MainActor in self?.scheduleNetRefresh() } }
-        Task { await refresh() }
+        // NWPathMonitor вызывает обработчик и при запуске.
     }
 
     private func scheduleAutoRefresh() {

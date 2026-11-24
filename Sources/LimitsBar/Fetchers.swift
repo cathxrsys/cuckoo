@@ -19,11 +19,36 @@ private let session: URLSession = {
     return URLSession(configuration: c)
 }()
 
+private struct RateLimited: LocalizedError {
+    let retryAt: Date
+    var earliestRetry: Date { retryAt.addingTimeInterval(30) }
+    var errorDescription: String? {
+        "Слишком частые запросы. Повтор возможен с \(earliestRetry.formatted(date: .omitted, time: .standard))."
+    }
+
+    init(retryAt: Date) { self.retryAt = retryAt }
+
+    init(header: String?) {
+        if let header, let seconds = Int(header), seconds >= 0 {
+            retryAt = Date().addingTimeInterval(TimeInterval(seconds))
+        } else {
+            let format = DateFormatter()
+            format.locale = Locale(identifier: "en_US_POSIX")
+            format.timeZone = TimeZone(secondsFromGMT: 0)
+            format.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+            retryAt = header.flatMap(format.date(from:)) ?? Date().addingTimeInterval(300)
+        }
+    }
+}
+
 private func getJSON(_ url: String, headers: [String: String] = [:]) async throws -> [String: Any] {
     var req = URLRequest(url: URL(string: url)!)
     headers.forEach { req.setValue($1, forHTTPHeaderField: $0) }
     let (data, resp) = try await session.data(for: req)
     let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+    if code == 429, let http = resp as? HTTPURLResponse {
+        throw RateLimited(header: http.value(forHTTPHeaderField: "Retry-After"))
+    }
     guard code == 200 else {
         throw FetchError.message(code == 401 || code == 403 ? "токен недействителен (\(code))" : "HTTP \(code)")
     }
@@ -100,10 +125,21 @@ enum Claude {
     }
 
     static func fetch() async throws -> [Window] {
-        let obj = try await getJSON("https://api.anthropic.com/api/oauth/usage", headers: [
-            "Authorization": "Bearer \(try token())",
-            "anthropic-beta": "oauth-2025-04-20",
-        ])
+        let defaults = UserDefaults.standard
+        let retryKey = "claudeUsageRetryEpoch"
+        let retryAt = Date(timeIntervalSince1970: defaults.double(forKey: retryKey))
+        let cooldown = RateLimited(retryAt: retryAt)
+        guard Date() >= cooldown.earliestRetry else { throw cooldown }
+        let obj: [String: Any]
+        do {
+            obj = try await getJSON("https://api.anthropic.com/api/oauth/usage", headers: [
+                "Authorization": "Bearer \(try token())",
+                "anthropic-beta": "oauth-2025-04-20",
+            ])
+        } catch let limit as RateLimited {
+            defaults.set(limit.retryAt.timeIntervalSince1970, forKey: retryKey)
+            throw limit
+        }
         let names: [(String, String)] = [
             ("five_hour", "5 часов"), ("seven_day", "Неделя"),
             ("seven_day_opus", "Неделя · Opus"), ("seven_day_sonnet", "Неделя · Sonnet"),
